@@ -8,8 +8,14 @@ public class Cup : MonoBehaviour
         if (bird != null)
         {
             GameManager.Instance.CupScored(bird);
-            Destroy(bird.gameObject); // hoặc disable để không bay lại
+            
+            // Thông báo cho CupManager
+            CupManager cupManager = FindObjectOfType<CupManager>();
+            if (cupManager != null)
+            {
+                cupManager.OnCupDestroyed();
+            }
         }
+        Destroy(gameObject);
     }
 }
-

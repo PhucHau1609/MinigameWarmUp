@@ -1,149 +1,116 @@
-﻿/*
-using UnityEngine;
-
-public class GameManager : MonoBehaviour
-{
-	#region Singleton class: GameManager
-
-	public static GameManager Instance;
-
-	void Awake ()
-	{
-		if (Instance == null) {
-			Instance = this;
-		}
-	}
-
-	#endregion
-
-	Camera cam;
-
-	public Ball ball;
-	public Trajectory trajectory;
-	[SerializeField] float pushForce = 4f;
-
-	bool isDragging = false;
-
-	Vector2 startPoint;
-	Vector2 endPoint;
-	Vector2 direction;
-	Vector2 force;
-	float distance;
-
-	//---------------------------------------
-	void Start ()
-	{
-		cam = Camera.main;
-		ball.DesactivateRb ();
-	}
-
-	void Update ()
-	{
-		if (Input.GetMouseButtonDown (0)) {
-			isDragging = true;
-			OnDragStart ();
-		}
-		if (Input.GetMouseButtonUp (0)) {
-			isDragging = false;
-			OnDragEnd ();
-		}
-
-		if (isDragging) {
-			OnDrag ();
-		}
-	}
-
-	//-Drag--------------------------------------
-	void OnDragStart ()
-	{
-		ball.DesactivateRb ();
-		startPoint = cam.ScreenToWorldPoint (Input.mousePosition);
-
-		trajectory.Show ();
-	}
-
-	void OnDrag ()
-	{
-		endPoint = cam.ScreenToWorldPoint (Input.mousePosition);
-		distance = Vector2.Distance (startPoint, endPoint);
-		direction = (startPoint - endPoint).normalized;
-		force = direction * distance * pushForce;
-
-		//just for debug
-		Debug.DrawLine (startPoint, endPoint);
-
-
-		trajectory.UpdateDots (ball.pos, force);
-	}
-
-	void OnDragEnd ()
-	{
-		//push the ball
-		ball.ActivateRb ();
-
-		ball.Push (force);
-
-		trajectory.Hide ();
-	}
-
-}
-*/
-
-
-
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using TMPro; // Thêm namespace cho TextMeshPro
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    void Awake() { if (Instance == null) Instance = this; }
-
-    public List<Ball> birds;
+    [Header("Game Objects")]
+    public GameObject ball;
     public Trajectory trajectory;
+    public GameObject panelGameOver;
+    
+    [Header("UI Elements")]
+    public TextMeshProUGUI shotCountText; // Text hiển thị số lần bắn
+    
+    [Header("Spawn Settings")]
+    public Transform[] ballSpawnPoints;
+    
+    [Header("Game Settings")]
     public float pushForce = 4f;
+    public string wheelSceneName = "Wheel";
+    public string gameplaySceneName = "Gameplay_Thuan";
 
     private Ball currentBird = null;
     private bool isDragging = false;
     private Vector2 startPoint, endPoint, direction, force;
     private float distance;
+    private bool gameOver = false;
+    private bool ballIsFlying = false; // Trạng thái bay của ball
 
-    public bool CanSelectBird => true;
+    public bool CanSelectBird => !gameOver && currentBird != null && !currentBird.IsUsed && !ballIsFlying;
+
+    void Awake() 
+    { 
+        if (Instance == null) 
+            Instance = this; 
+        else
+            Destroy(gameObject);
+    }
 
     void Start()
     {
-        foreach (var bird in birds)
-            bird.DesactivateRb();
+        InitializeGame();
+    }
+
+    void InitializeGame()
+    {
+        gameOver = false;
+        ballIsFlying = false;
+
+        if (panelGameOver != null)
+            panelGameOver.SetActive(false);
+
+        SpawnBallAtRandomPosition();
+        UpdateShotCountUI(); // Cập nhật UI ban đầu
+    }
+
+    void SpawnBallAtRandomPosition()
+    {
+        if (ballSpawnPoints.Length > 0 && ball != null)
+        {
+            int randomIndex = Random.Range(0, ballSpawnPoints.Length);
+            Transform spawnPoint = ballSpawnPoints[randomIndex];
+
+            GameObject ballObj = Instantiate(ball, spawnPoint.position, Quaternion.identity);
+            currentBird = ballObj.GetComponent<Ball>();
+            
+            if (currentBird != null)
+            {
+                currentBird.ResetBall();
+                currentBird.DesactivateRb();
+            }
+
+            Debug.Log($"Ball spawned at: {spawnPoint.position}");
+        }
+        else
+        {
+            Debug.LogWarning("Missing spawn points or ball prefab!");
+        }
     }
 
     void Update()
     {
-        if (currentBird == null) return;
+        if (gameOver || currentBird == null) return;
 
-        if (Input.GetMouseButtonDown(0))
+        // Chỉ cho phép kéo bắn khi ball không bay
+        if (!ballIsFlying)
         {
-            isDragging = true;
-            OnDragStart();
-        }
+            if (Input.GetMouseButtonDown(0))
+            {
+                isDragging = true;
+                OnDragStart();
+            }
 
-        if (Input.GetMouseButtonUp(0))
-        {
-            isDragging = false;
-            OnDragEnd();
-        }
+            if (Input.GetMouseButtonUp(0) && isDragging)
+            {
+                isDragging = false;
+                OnDragEnd();
+            }
 
-        if (isDragging) OnDrag();
+            if (isDragging) OnDrag();
+        }
     }
 
     public void SelectBird(Ball bird)
     {
-        if (bird.IsUsed) return;
+        if (bird.IsUsed || gameOver || ballIsFlying) return;
 
         if (currentBird != null && currentBird != bird)
         {
-            // Nếu chọn chim mới => đánh dấu chim cũ là đã dùng (bỏ lượt 2)
             currentBird.MarkUsed();
             Debug.Log("Bỏ lượt còn lại của chim: " + currentBird.name);
         }
@@ -154,6 +121,8 @@ public class GameManager : MonoBehaviour
 
     void OnDragStart()
     {
+        if (currentBird == null || !currentBird.CanShoot()) return;
+        
         currentBird.DesactivateRb();
         startPoint = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         trajectory.Show();
@@ -161,6 +130,8 @@ public class GameManager : MonoBehaviour
 
     void OnDrag()
     {
+        if (currentBird == null || !currentBird.CanShoot()) return;
+        
         endPoint = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         distance = Vector2.Distance(startPoint, endPoint);
         direction = (startPoint - endPoint).normalized;
@@ -170,33 +141,69 @@ public class GameManager : MonoBehaviour
 
     void OnDragEnd()
     {
+        if (currentBird == null || !currentBird.CanShoot()) return;
+        
         currentBird.ActivateRb();
         currentBird.Push(force);
         trajectory.Hide();
-
-        StartCoroutine(WaitForLanding());
     }
 
-    IEnumerator WaitForLanding()
+    // Được gọi khi ball bắt đầu bay
+    public void OnBallStartFlying()
     {
-        yield return new WaitForSeconds(2f);
+        ballIsFlying = true;
+        Debug.Log("Ball started flying - Input disabled");
+    }
 
-        if (currentBird.IsUsed)
+    // Được gọi khi ball dừng bay
+    public void OnBallStoppedFlying()
+    {
+        ballIsFlying = false;
+        Debug.Log("Ball stopped flying - Input enabled");
+    }
+
+    // Cập nhật UI hiển thị số lần bắn
+    public void UpdateShotCountUI()
+    {
+        if (shotCountText != null && currentBird != null)
         {
-            Debug.Log("Chim đã hết lượt: " + currentBird.name);
-            currentBird = null;
+            int remaining = currentBird.maxShots - currentBird.CurrentShotCount;
+            shotCountText.text = $"{remaining}/{currentBird.maxShots}";
         }
-        else
+    }
+
+    public void OnAllShotsUsed()
+    {
+        Debug.Log("Đã hết 5 lượt bắn!");
+        ShowGameOver();
+    }
+
+    public void ShowGameOver()
+    {
+        gameOver = true;
+        if (panelGameOver != null)
         {
-            Debug.Log("Chim vẫn còn 1 lượt nữa: " + currentBird.name);
-            // Hiện UI nếu muốn, hoặc chờ người chơi tự chọn lại
+            panelGameOver.SetActive(true);
         }
+        Time.timeScale = 0f;
+        Debug.Log("Game Over!");
     }
 
     public void CupScored(Ball bird)
     {
         Debug.Log($"CUP HIT! Bird: {bird.name}");
-        // Tuỳ chỉnh thêm nếu muốn check win tại đây
+    }
+
+    public void LoadWheelScene()
+    {
+        Debug.Log("Loading Wheel Scene...");
+        SceneManager.LoadScene(wheelSceneName);
+    }
+
+    public void RestartGame()
+    {
+        Debug.Log("Restarting game...");
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(gameplaySceneName);
     }
 }
-

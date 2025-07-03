@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 2cda990e2423bbf4892e6590ba056729
+    path: Assets/_Thuan/_Scenes/Gameplay_Thuan.unity
+    guid: a48953f4c1e67b440b292f4387b1ba30
+  - enabled: 1
+    path: Assets/Wheel.unity
+    guid: f6f19cab75be894429a900ab27289609
   m_configObjects: {}
