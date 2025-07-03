@@ -1,13 +1,14 @@
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
+using TMPro;
 
 namespace EasyUI.PickerWheelUI {
     public class RewardDisplay : MonoBehaviour {
         [Header("Reward Display Settings")]
         [SerializeField] private GameObject rewardPanel;
         [SerializeField] private Image rewardIcon;
-        [SerializeField] private Text rewardLabel;
+        [SerializeField] private TextMeshProUGUI rewardLabel;
         [SerializeField] private Text rewardAmount;
         
         [Header("Animation Settings")]
